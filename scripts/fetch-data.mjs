@@ -13,7 +13,7 @@ import { pages } from '../src/config/pages.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, '../src/data/pages')
-const API_BASE = 'https://api.vaults.fyi/v2'
+const API_BASE = 'https://api.vaults.fyi'
 const API_KEY = process.env.VAULTS_API_KEY
 
 if (!API_KEY) {
