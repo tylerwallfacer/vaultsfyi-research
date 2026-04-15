@@ -32,26 +32,44 @@ function fmtTvl(usd) {
   return '$' + usd.toFixed(0)
 }
 
-function riskLabel(score) {
+function fmtScore(score) {
   if (score === null || score === undefined) return { label: '—', cls: 'risk-unknown' }
-  if (score >= 80) return { label: 'Low', cls: 'risk-low' }
-  if (score >= 60) return { label: 'Medium', cls: 'risk-medium' }
-  if (score >= 40) return { label: 'Elevated', cls: 'risk-elevated' }
-  return { label: 'High', cls: 'risk-high' }
+  const n = Math.round(score)
+  if (score >= 80) return { label: `${n} / 100`, cls: 'risk-low' }
+  if (score >= 60) return { label: `${n} / 100`, cls: 'risk-medium' }
+  if (score >= 40) return { label: `${n} / 100`, cls: 'risk-elevated' }
+  return { label: `${n} / 100`, cls: 'risk-high' }
+}
+
+function titleCase(str) {
+  if (!str) return '—'
+  const KNOWN = {
+    aave: 'Aave', morpho: 'Morpho', spark: 'Spark', euler: 'Euler',
+    compound: 'Compound', maker: 'Maker', pendle: 'Pendle', fluid: 'Fluid',
+    gearbox: 'Gearbox', notional: 'Notional', yearn: 'Yearn', convex: 'Convex',
+    curve: 'Curve', balancer: 'Balancer', uniswap: 'Uniswap', midas: 'Midas',
+    maple: 'Maple', ethena: 'Ethena', ondo: 'Ondo', superform: 'Superform',
+  }
+  const lower = str.toLowerCase()
+  return KNOWN[lower] ?? str.charAt(0).toUpperCase() + str.slice(1)
 }
 
 const NETWORK_NAMES = {
   ethereum: 'Ethereum',
-  base: 'Base',
+  mainnet:  'Ethereum',
+  base:     'Base',
   arbitrum: 'Arbitrum',
   optimism: 'Optimism',
-  polygon: 'Polygon',
-  avalanche: 'Avalanche',
-  bnb: 'BNB Chain',
-  gnosis: 'Gnosis',
-  scroll: 'Scroll',
-  linea: 'Linea',
-  etherlink: 'Etherlink',
+  polygon:  'Polygon',
+  avalanche:'Avalanche',
+  bnb:      'BNB Chain',
+  gnosis:   'Gnosis',
+  scroll:   'Scroll',
+  linea:    'Linea',
+  etherlink:'Etherlink',
+  ink:      'Ink',
+  sonic:    'Sonic',
+  berachain:'Berachain',
 }
 
 function fmtNetwork(n) {
@@ -97,6 +115,12 @@ const datasetSchema = {
   },
   temporalCoverage: fetchedAt ? fetchedAt.split('T')[0] : undefined,
   license: 'https://vaults.fyi',
+  hasPart: vaults?.filter(v => v.lpToken?.address).map(v => ({
+    '@type': 'Dataset',
+    name: v.lpToken.name ?? v.name,
+    identifier: v.lpToken.address,
+    description: `${v.name} by ${v.protocol} on ${v.network}. Token symbol: ${v.lpToken.symbol}. 7-day APY: ${(v.apy7d * 100).toFixed(2)}%.`,
+  })),
 }
 
 const breadcrumbSchema = {
@@ -209,6 +233,7 @@ const breadcrumbSchema = {
       color: var(--muted);
     }
     .tvl-val { color: var(--text); }
+    .token-sym { font-family: monospace; font-size: 0.82rem; color: var(--muted); }
     .vault-name { font-weight: 500; }
     .network-badge {
       display: inline-block;
@@ -332,6 +357,7 @@ const breadcrumbSchema = {
           <thead>
             <tr>
               <th>Vault</th>
+              <th>Token</th>
               <th>Protocol</th>
               <th>Network</th>
               <th>7-Day APY</th>
@@ -341,7 +367,7 @@ const breadcrumbSchema = {
           </thead>
           <tbody>
             {vaults.map(v => {
-              const { label, cls } = riskLabel(v.reputationScore)
+              const { label, cls } = fmtScore(v.reputationScore)
               return (
                 <tr>
                   <td class="vault-name">
@@ -349,7 +375,8 @@ const breadcrumbSchema = {
                       ? <a href={v.lendUrl} target="_blank" rel="noopener">{v.name}</a>
                       : v.name}
                   </td>
-                  <td>{v.protocol}</td>
+                  <td class="token-sym">{v.lpToken?.symbol ?? '—'}</td>
+                  <td>{titleCase(v.protocol)}</td>
                   <td><span class="network-badge">{fmtNetwork(v.network)}</span></td>
                   <td>
                     <span class="apy-val">{fmtApy(v.apy7d)}</span>

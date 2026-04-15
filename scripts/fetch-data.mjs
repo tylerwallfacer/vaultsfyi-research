@@ -92,6 +92,11 @@ function normalizeVault(v) {
   const network  = v.network?.name  ?? v.network?.slug ?? String(v.network ?? 'unknown')
   const name     = v.name ?? 'Unnamed Vault'
   const asset    = v.asset?.symbol  ?? String(v.asset ?? '')
+  const lpToken  = v.lpToken ? {
+    symbol:  v.lpToken.symbol  ?? null,
+    name:    v.lpToken.name    ?? null,
+    address: v.lpToken.address ?? null,
+  } : null
 
   return {
     name,
@@ -100,6 +105,7 @@ function normalizeVault(v) {
     asset,
     address:      v.address ?? '',
     lendUrl:      v.lendUrl ?? null,
+    lpToken,
     apy7d:        parseFloat(apy7d)        || 0,
     apy7dBase:    parseFloat(apy7dBase)    || 0,
     apy7dReward:  parseFloat(apy7dReward)  || 0,
