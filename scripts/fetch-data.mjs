@@ -85,15 +85,8 @@ function normalizeVault(v) {
   const apy7dBase   = v.apy?.['7day']?.base  ?? apy7d
   const apy7dReward = v.apy?.['7day']?.reward ?? 0
 
-  // tvl may be a number or { total: number }
-  const tvlRaw = v.tvl
-  const tvl    = typeof tvlRaw === 'object' ? (tvlRaw?.total ?? 0) : (tvlRaw ?? 0)
-
-  // score is the reputation/risk field (not reputationScore)
-  const scoreRaw       = v.score
-  const reputationScore = typeof scoreRaw === 'object'
-    ? (scoreRaw?.total ?? scoreRaw?.overall ?? null)
-    : (scoreRaw ?? null)
+  const tvl             = parseFloat(v.tvl?.usd ?? 0)
+  const reputationScore = v.score?.vaultScore ?? null
 
   const protocol = v.protocol?.name ?? String(v.protocol ?? 'Unknown')
   const network  = v.network?.name  ?? v.network?.slug ?? String(v.network ?? 'unknown')
@@ -110,7 +103,7 @@ function normalizeVault(v) {
     apy7d:        parseFloat(apy7d)        || 0,
     apy7dBase:    parseFloat(apy7dBase)    || 0,
     apy7dReward:  parseFloat(apy7dReward)  || 0,
-    tvl:          parseFloat(tvl)          || 0,
+    tvl,
     reputationScore,
     flags: v.flags ?? [],
   }
