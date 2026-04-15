@@ -62,10 +62,12 @@ function toApiParams(pageApiParams, page = 0) {
   if (pageApiParams.protocols?.length) p.allowedProtocols = pageApiParams.protocols
   if (pageApiParams.networks?.length)  p.allowedNetworks  = pageApiParams.networks
   if (pageApiParams.minTvl)            p.minTvl           = pageApiParams.minTvl
-  p.sortBy    = 'apy7day'
-  p.sortOrder = 'desc'
-  p.perPage   = pageApiParams.perPage ?? 20
-  p.page      = page
+  p.sortBy                  = 'apy7day'
+  p.sortOrder               = 'desc'
+  p.perPage                 = pageApiParams.perPage ?? 20
+  p.page                    = page
+  p.allowVaultsWithWarnings = false
+  p.onlyAppFeatured         = true
   return p
 }
 
@@ -78,7 +80,9 @@ async function fetchPage(apiParams, page = 0) {
 }
 
 /** Normalize a vault from the API response into a consistent shape. */
-function normalizeVault(v) {
+function normalizeVault(v, debug = false) {
+  if (debug) console.log('  raw vault keys:', Object.keys(v).join(', '))
+
   const apy7d =
     v.apy?.['7day']?.total ??
     v.apy?.['7day'] ??
@@ -89,12 +93,19 @@ function normalizeVault(v) {
   const apy7dBase   = v.apy?.['7day']?.base   ?? apy7d
   const apy7dReward = v.apy?.['7day']?.reward  ?? 0
 
-  const tvl   = v.tvlUsd ?? v.tvl ?? 0
+  const tvlRaw = v.tvlUsd ?? v.tvl?.total ?? v.tvl ?? v.totalValueLockedUsd ?? 0
+  const tvl    = typeof tvlRaw === 'object' ? (tvlRaw?.total ?? 0) : tvlRaw
+
   const protocol = v.protocol?.name ?? v.protocolName ?? String(v.protocol ?? 'Unknown')
   const network  = v.network?.name ?? v.network?.slug ?? String(v.network ?? 'unknown')
   const name     = v.name ?? v.vaultName ?? 'Unnamed Vault'
   const asset    = v.asset?.symbol ?? v.assetSymbol ?? String(v.asset ?? '')
-  const reputationScore = v.reputationScore ?? v.reputation ?? null
+  const reputationScore =
+    v.reputationScore?.total ??
+    v.reputationScore ??
+    v.reputation?.total ??
+    v.reputation ??
+    null
 
   return {
     name,
@@ -146,7 +157,7 @@ mkdirSync(DATA_DIR, { recursive: true })
 const fetchedAt = new Date().toISOString()
 
 console.log('Fetching benchmarks...')
-const benchmark = await fetchBenchmark('ethereum')
+const benchmark = await fetchBenchmark('mainnet')
 console.log(`Benchmark — USD: ${benchmark.usd != null ? (benchmark.usd * 100).toFixed(2) + '%' : 'n/a'}, ETH: ${benchmark.eth != null ? (benchmark.eth * 100).toFixed(2) + '%' : 'n/a'}`)
 
 for (const page of pages) {
@@ -163,7 +174,7 @@ for (const page of pages) {
     }
 
     const vaults = allItems
-      .map(normalizeVault)
+      .map((v, i) => normalizeVault(v, i === 0))
       .filter(v => v.apy7d > 0)
       .sort((a, b) => b.apy7d - a.apy7d)
       .slice(0, 15)

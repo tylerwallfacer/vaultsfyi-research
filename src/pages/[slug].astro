@@ -15,6 +15,8 @@ export function getStaticPaths() {
 const { data } = Astro.props
 const { config, vaults, benchmarkRate, fetchedAt } = data
 
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 function fmtApy(raw) {
@@ -300,7 +302,7 @@ const breadcrumbSchema = {
 
   <!-- Breadcrumb -->
   <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href={import.meta.env.BASE_URL}>Research</a> / {config.title}
+    <a href={`${base}/`}>Research</a> / {config.title}
   </nav>
 
   <!-- Hero -->
@@ -334,7 +336,7 @@ const breadcrumbSchema = {
               <th>Network</th>
               <th>7-Day APY</th>
               <th>TVL</th>
-              <th>Risk</th>
+              <th>Reputation Score</th>
             </tr>
           </thead>
           <tbody>
@@ -404,7 +406,7 @@ const breadcrumbSchema = {
       <h2>Related Research</h2>
       <div class="related-grid">
         {config.related.map(({ slug, label }) => (
-          <a class="related-link" href={`${import.meta.env.BASE_URL}${slug}`}>{label}</a>
+          <a class="related-link" href={`${base}/${slug}`}>{label}</a>
         ))}
       </div>
     </section>

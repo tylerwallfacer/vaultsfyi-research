@@ -51,7 +51,7 @@ import { pages } from '../config/pages.mjs'
 
   <div class="grid">
     {pages.map(page => (
-      <a class="card" href={`${import.meta.env.BASE_URL}${page.slug}`}>
+      <a class="card" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/${page.slug}`}>
         <div class="card-title">{page.h1}</div>
         <div class="card-desc">{page.description}</div>
       </a>
