@@ -1,0 +1,147 @@
+---
+export interface Props {
+  title: string
+  description: string
+  slug: string
+  jsonLd?: object[]
+}
+
+const { title, description, slug, jsonLd = [] } = Astro.props
+const GA_ID = import.meta.env.GA_MEASUREMENT_ID || 'G-XXXXXXXXXX'
+const canonicalUrl = `${Astro.site}/${slug}`
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>{title} | vaults.fyi</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={`${title} | vaults.fyi`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="vaults.fyi" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={`${title} | vaults.fyi`} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- JSON-LD structured data -->
+    {jsonLd.map(schema => (
+      <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    ))}
+
+    <!-- Google Analytics -->
+    <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
+    <script define:vars={{ GA_ID }}>
+      window.dataLayer = window.dataLayer || []
+      function gtag() { dataLayer.push(arguments) }
+      gtag('js', new Date())
+      gtag('config', GA_ID)
+    </script>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --blue: #18abff;
+        --blue-dark: #187ee8;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --bg-subtle: #f9fafb;
+        --green: #16a34a;
+        --yellow: #ca8a04;
+        --red: #dc2626;
+        --font: 'Inter', system-ui, -apple-system, sans-serif;
+      }
+
+      body {
+        font-family: var(--font);
+        color: var(--text);
+        background: #fff;
+        line-height: 1.6;
+      }
+
+      a { color: var(--blue-dark); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Nav */
+      nav {
+        border-bottom: 1px solid var(--border);
+        padding: 14px 0;
+        margin-bottom: 48px;
+      }
+      nav .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .nav-logo {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .nav-links {
+        display: flex;
+        gap: 24px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .nav-links a { color: var(--muted); }
+
+      /* Footer */
+      footer {
+        border-top: 1px solid var(--border);
+        margin-top: 80px;
+        padding: 32px 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      footer .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a class="nav-logo" href="https://vaults.fyi">vaults.fyi</a>
+        <div class="nav-links">
+          <a href="https://app.vaults.fyi">App</a>
+          <a href="https://docs.vaults.fyi">API Docs</a>
+          <a href="/">Research</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container">
+      <slot />
+    </main>
+
+    <footer>
+      <div class="container">
+        <span>Data sourced from <a href="https://vaults.fyi">vaults.fyi</a>, updated daily from onchain contracts.</span>
+        <span><a href="https://app.vaults.fyi">Explore all vaults →</a></span>
+      </div>
+    </footer>
+  </body>
+</html>

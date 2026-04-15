@@ -1,0 +1,416 @@
+---
+import ResearchLayout from '../layouts/ResearchLayout.astro'
+
+// Load all pre-fetched data files at build time
+const allDataFiles = import.meta.glob('../data/pages/*.json', { eager: true })
+
+export function getStaticPaths() {
+  const allData = import.meta.glob('../data/pages/*.json', { eager: true })
+  return Object.values(allData).map((data) => ({
+    params: { slug: data.config.slug },
+    props: { data },
+  }))
+}
+
+const { data } = Astro.props
+const { config, vaults, benchmarkRate, fetchedAt } = data
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+function fmtApy(raw) {
+  if (!raw && raw !== 0) return '—'
+  return (parseFloat(raw) * 100).toFixed(2) + '%'
+}
+
+function fmtTvl(usd) {
+  if (!usd) return '—'
+  if (usd >= 1e9) return '$' + (usd / 1e9).toFixed(2) + 'B'
+  if (usd >= 1e6) return '$' + (usd / 1e6).toFixed(1) + 'M'
+  if (usd >= 1e3) return '$' + (usd / 1e3).toFixed(0) + 'K'
+  return '$' + usd.toFixed(0)
+}
+
+function riskLabel(score) {
+  if (score === null || score === undefined) return { label: '—', cls: 'risk-unknown' }
+  if (score >= 80) return { label: 'Low', cls: 'risk-low' }
+  if (score >= 60) return { label: 'Medium', cls: 'risk-medium' }
+  if (score >= 40) return { label: 'Elevated', cls: 'risk-elevated' }
+  return { label: 'High', cls: 'risk-high' }
+}
+
+const NETWORK_NAMES = {
+  ethereum: 'Ethereum',
+  base: 'Base',
+  arbitrum: 'Arbitrum',
+  optimism: 'Optimism',
+  polygon: 'Polygon',
+  avalanche: 'Avalanche',
+  bnb: 'BNB Chain',
+  gnosis: 'Gnosis',
+  scroll: 'Scroll',
+  linea: 'Linea',
+  etherlink: 'Etherlink',
+}
+
+function fmtNetwork(n) {
+  return NETWORK_NAMES[n?.toLowerCase()] ?? n ?? '—'
+}
+
+// ── Dates ─────────────────────────────────────────────────────────────────────
+
+const updatedDate = fetchedAt
+  ? new Date(fetchedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : 'recently'
+
+// ── Top vault for hero ────────────────────────────────────────────────────────
+
+const topVault = vaults?.[0]
+const topApy = topVault ? fmtApy(topVault.apy7d) : '—'
+const benchmarkDisplay = benchmarkRate ? fmtApy(benchmarkRate) : null
+
+// ── JSON-LD schemas ───────────────────────────────────────────────────────────
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: config.faq.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+}
+
+const datasetSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: config.title,
+  description: config.description,
+  url: `${Astro.site}/${config.slug}`,
+  provider: {
+    '@type': 'Organization',
+    name: 'vaults.fyi',
+    url: 'https://vaults.fyi',
+  },
+  temporalCoverage: fetchedAt ? fetchedAt.split('T')[0] : undefined,
+  license: 'https://vaults.fyi',
+}
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Research', item: `${Astro.site}` },
+    { '@type': 'ListItem', position: 2, name: config.title, item: `${Astro.site}/${config.slug}` },
+  ],
+}
+---
+
+<ResearchLayout
+  title={config.title}
+  description={config.description}
+  slug={config.slug}
+  jsonLd={[faqSchema, datasetSchema, breadcrumbSchema]}
+>
+  <style>
+    .breadcrumb {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .breadcrumb a { color: var(--muted); }
+
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.25rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .intro {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .hero-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .hero-apy {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1;
+    }
+    .hero-label {
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    .meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+
+    /* Table */
+    section { margin-bottom: 48px; }
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    thead th {
+      background: var(--bg-subtle);
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg-subtle); }
+    td {
+      padding: 12px 14px;
+      vertical-align: middle;
+    }
+    .apy-val {
+      font-weight: 700;
+      color: var(--green);
+      font-size: 0.95rem;
+    }
+    .apy-reward {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .tvl-val { color: var(--text); }
+    .vault-name { font-weight: 500; }
+    .network-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: var(--muted);
+    }
+
+    .risk-low    { color: var(--green); font-weight: 600; }
+    .risk-medium { color: var(--yellow); font-weight: 600; }
+    .risk-elevated { color: #d97706; font-weight: 600; }
+    .risk-high   { color: var(--red); font-weight: 600; }
+    .risk-unknown { color: var(--muted); }
+
+    .benchmark-note {
+      font-size: 0.83rem;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .empty-state {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* Explanatory sections */
+    .prose p {
+      margin-bottom: 16px;
+      line-height: 1.7;
+    }
+
+    /* FAQ */
+    .faq-list { list-style: none; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+    .faq-a {
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    /* Related links */
+    .related-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .related-link {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      color: var(--blue-dark);
+      transition: border-color 0.15s;
+    }
+    .related-link:hover {
+      border-color: var(--blue);
+      text-decoration: none;
+    }
+
+    .cta-box {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      margin-top: 48px;
+    }
+    .cta-box p { margin-bottom: 12px; color: var(--muted); }
+    .cta-btn {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .cta-btn:hover { background: var(--blue-dark); text-decoration: none; }
+  </style>
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Research</a> / {config.title}
+  </nav>
+
+  <!-- Hero -->
+  <h1>{config.h1}</h1>
+  <p class="intro">{config.intro}</p>
+
+  {topVault && (
+    <div class="hero-stat">
+      <span class="hero-apy">{topApy}</span>
+      <span class="hero-label">
+        Best 7-day APY — {topVault.protocol} ({fmtNetwork(topVault.network)})
+      </span>
+    </div>
+  )}
+
+  <p class="meta">
+    Last updated: {updatedDate} · Data: <a href="https://vaults.fyi">vaults.fyi</a>
+    {benchmarkDisplay && <> · DeFi benchmark rate: {benchmarkDisplay}</>}
+  </p>
+
+  <!-- Vault table -->
+  <section>
+    <h2>Live Yield Rates</h2>
+    <div class="table-wrap">
+      {vaults && vaults.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Vault</th>
+              <th>Protocol</th>
+              <th>Network</th>
+              <th>7-Day APY</th>
+              <th>TVL</th>
+              <th>Risk</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vaults.map(v => {
+              const { label, cls } = riskLabel(v.reputationScore)
+              return (
+                <tr>
+                  <td class="vault-name">{v.name}</td>
+                  <td>{v.protocol}</td>
+                  <td><span class="network-badge">{fmtNetwork(v.network)}</span></td>
+                  <td>
+                    <span class="apy-val">{fmtApy(v.apy7d)}</span>
+                    {v.apy7dReward > 0 && (
+                      <div class="apy-reward">+{fmtApy(v.apy7dReward)} rewards</div>
+                    )}
+                  </td>
+                  <td class="tvl-val">{fmtTvl(v.tvl)}</td>
+                  <td class={cls}>{label}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <div class="empty-state">No vault data available. Check back tomorrow.</div>
+      )}
+    </div>
+    {benchmarkDisplay && (
+      <p class="benchmark-note">
+        DeFi benchmark rate: <strong>{benchmarkDisplay}</strong> — the market average used to evaluate vault performance.
+      </p>
+    )}
+  </section>
+
+  <!-- Where yield comes from -->
+  <section>
+    <h2>Where Does This Yield Come From?</h2>
+    <div class="prose">
+      <p>{config.yieldSource}</p>
+    </div>
+  </section>
+
+  <!-- Risks -->
+  <section>
+    <h2>Risks to Consider</h2>
+    <div class="prose">
+      <p>{config.risks}</p>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section>
+    <h2>Frequently Asked Questions</h2>
+    <ul class="faq-list">
+      {config.faq.map(({ q, a }) => (
+        <li class="faq-item">
+          <p class="faq-q">{q}</p>
+          <p class="faq-a">{a}</p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- Related pages -->
+  {config.related && config.related.length > 0 && (
+    <section>
+      <h2>Related Research</h2>
+      <div class="related-grid">
+        {config.related.map(({ slug, label }) => (
+          <a class="related-link" href={`/${slug}`}>{label}</a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <!-- CTA -->
+  <div class="cta-box">
+    <p>Explore all 1,400+ vaults across 20 networks on vaults.fyi</p>
+    <a class="cta-btn" href="https://app.vaults.fyi">Explore all vaults →</a>
+  </div>
+</ResearchLayout>

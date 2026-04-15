@@ -1,0 +1,60 @@
+---
+import ResearchLayout from '../layouts/ResearchLayout.astro'
+import { pages } from '../config/pages.mjs'
+---
+
+<ResearchLayout
+  title="DeFi Yield Research"
+  description="Live DeFi yield rates, APY comparisons, and lending market data for USDC, USDT, ETH, BTC, and more. Updated daily from onchain sources."
+  slug=""
+>
+  <style>
+    h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); font-weight: 700; margin-bottom: 12px; }
+    .subtitle { font-size: 1.05rem; color: var(--muted); margin-bottom: 48px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+      color: var(--text);
+      display: block;
+    }
+    .card:hover {
+      border-color: var(--blue);
+      box-shadow: 0 2px 8px rgba(24,171,255,0.1);
+      text-decoration: none;
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+    .card-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+  </style>
+
+  <h1>DeFi Yield Research</h1>
+  <p class="subtitle">
+    Live yield rates and market data across DeFi protocols, updated daily from onchain sources.
+  </p>
+
+  <div class="grid">
+    {pages.map(page => (
+      <a class="card" href={`/${page.slug}`}>
+        <div class="card-title">{page.h1}</div>
+        <div class="card-desc">{page.description}</div>
+      </a>
+    ))}
+  </div>
+</ResearchLayout>
