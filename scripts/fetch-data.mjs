@@ -42,25 +42,39 @@ function buildUrl(path, params = {}) {
 
 async function apiFetch(path, params = {}) {
   const url = buildUrl(path, params)
+  console.log(`  GET ${url}`)
   const res = await fetch(url, { headers })
   if (!res.ok) {
-    throw new Error(`API error ${res.status} for ${url}: ${await res.text()}`)
+    const body = await res.text()
+    throw new Error(`API ${res.status} for ${url}: ${body}`)
   }
   return res.json()
 }
 
-/** Fetch all pages of a paginated endpoint, up to maxPages. */
-async function fetchAllPages(path, params = {}, maxPages = 5) {
-  const results = []
-  let page = 0
-  while (page < maxPages) {
-    const data = await apiFetch(path, { ...params, page, perPage: params.perPage ?? 50 })
-    const items = data.data ?? data.vaults ?? data.results ?? []
-    results.push(...items)
-    if (!data.nextPage) break
-    page++
-  }
-  return results
+/**
+ * Translate page config apiParams to actual API query param names.
+ * API uses: allowedAssets, allowedProtocols, allowedNetworks, minTvl,
+ *           sortBy=apy7day, sortOrder=desc, perPage, page
+ */
+function toApiParams(pageApiParams, page = 0) {
+  const p = {}
+  if (pageApiParams.assets?.length)    p.allowedAssets    = pageApiParams.assets
+  if (pageApiParams.protocols?.length) p.allowedProtocols = pageApiParams.protocols
+  if (pageApiParams.networks?.length)  p.allowedNetworks  = pageApiParams.networks
+  if (pageApiParams.minTvl)            p.minTvl           = pageApiParams.minTvl
+  p.sortBy    = 'apy7day'
+  p.sortOrder = 'desc'
+  p.perPage   = pageApiParams.perPage ?? 20
+  p.page      = page
+  return p
+}
+
+/** Fetch one page of results and return { items, hasMore }. */
+async function fetchPage(apiParams, page = 0) {
+  const data = await apiFetch('/v2/detailed-vaults', toApiParams(apiParams, page))
+  const items = data.data ?? data.vaults ?? data.results ?? []
+  console.log(`  → ${items.length} vaults (page ${page}), nextPage: ${data.nextPage ?? 'none'}`)
+  return { items, hasMore: !!data.nextPage }
 }
 
 /** Normalize a vault from the API response into a consistent shape. */
@@ -72,46 +86,43 @@ function normalizeVault(v) {
     v.apy?.total ??
     0
 
-  const apy7dBase = v.apy?.['7day']?.base ?? v.apy7d ?? apy7d
-  const apy7dReward = v.apy?.['7day']?.reward ?? 0
+  const apy7dBase   = v.apy?.['7day']?.base   ?? apy7d
+  const apy7dReward = v.apy?.['7day']?.reward  ?? 0
 
-  const tvl = v.tvlUsd ?? v.tvl ?? 0
+  const tvl   = v.tvlUsd ?? v.tvl ?? 0
   const protocol = v.protocol?.name ?? v.protocolName ?? String(v.protocol ?? 'Unknown')
-  const network = v.network ?? 'unknown'
-  const name = v.name ?? v.vaultName ?? 'Unnamed Vault'
-  const asset = v.asset?.symbol ?? v.assetSymbol ?? v.asset ?? ''
+  const network  = v.network ?? 'unknown'
+  const name     = v.name ?? v.vaultName ?? 'Unnamed Vault'
+  const asset    = v.asset?.symbol ?? v.assetSymbol ?? String(v.asset ?? '')
   const reputationScore = v.reputationScore ?? v.reputation ?? null
-  const address = v.address ?? v.vaultAddress ?? ''
-  const flags = v.flags ?? []
 
   return {
     name,
     protocol,
     network,
     asset,
-    address,
-    apy7d: parseFloat(apy7d) || 0,
-    apy7dBase: parseFloat(apy7dBase) || 0,
-    apy7dReward: parseFloat(apy7dReward) || 0,
-    tvl: parseFloat(tvl) || 0,
+    address: v.address ?? v.vaultAddress ?? '',
+    apy7d:        parseFloat(apy7d)        || 0,
+    apy7dBase:    parseFloat(apy7dBase)    || 0,
+    apy7dReward:  parseFloat(apy7dReward)  || 0,
+    tvl:          parseFloat(tvl)          || 0,
     reputationScore,
-    flags,
+    flags: v.flags ?? [],
   }
 }
 
-/** Fetch benchmark APY for USD or ETH on a given network. */
+/** Fetch benchmark APY for a given network. */
 async function fetchBenchmark(network = 'ethereum') {
   try {
     const data = await apiFetch(`/v2/benchmarks/${network}`)
-    // Response shape: { data: [ { benchmarkCode, apy: { '7day': { total } } } ] }
     const benchmarks = data.data ?? data.benchmarks ?? []
+    console.log(`  Benchmark keys: ${benchmarks.map(b => b.benchmarkCode ?? b.name).join(', ')}`)
+
     const usdBench = benchmarks.find(b =>
-      b.benchmarkCode?.toLowerCase().includes('usd') ||
-      b.name?.toLowerCase().includes('usd')
+      (b.benchmarkCode ?? b.name ?? '').toLowerCase().includes('usd')
     )
     const ethBench = benchmarks.find(b =>
-      b.benchmarkCode?.toLowerCase().includes('eth') ||
-      b.name?.toLowerCase().includes('eth')
+      (b.benchmarkCode ?? b.name ?? '').toLowerCase().includes('eth')
     )
 
     const extractRate = (b) => {
@@ -121,12 +132,9 @@ async function fetchBenchmark(network = 'ethereum') {
       return apy?.['7day']?.total ?? apy?.total ?? null
     }
 
-    return {
-      usd: extractRate(usdBench),
-      eth: extractRate(ethBench),
-    }
+    return { usd: extractRate(usdBench), eth: extractRate(ethBench) }
   } catch (err) {
-    console.warn(`  Warning: could not fetch benchmark for ${network}: ${err.message}`)
+    console.warn(`  Warning: benchmark fetch failed: ${err.message}`)
     return { usd: null, eth: null }
   }
 }
@@ -136,16 +144,25 @@ async function fetchBenchmark(network = 'ethereum') {
 mkdirSync(DATA_DIR, { recursive: true })
 
 const fetchedAt = new Date().toISOString()
-const benchmark = await fetchBenchmark('ethereum')
 
-console.log(`Benchmark rates — USD: ${benchmark.usd ? (benchmark.usd * 100).toFixed(2) + '%' : 'n/a'}, ETH: ${benchmark.eth ? (benchmark.eth * 100).toFixed(2) + '%' : 'n/a'}`)
+console.log('Fetching benchmarks...')
+const benchmark = await fetchBenchmark('ethereum')
+console.log(`Benchmark — USD: ${benchmark.usd != null ? (benchmark.usd * 100).toFixed(2) + '%' : 'n/a'}, ETH: ${benchmark.eth != null ? (benchmark.eth * 100).toFixed(2) + '%' : 'n/a'}`)
 
 for (const page of pages) {
-  console.log(`Fetching data for: ${page.slug}`)
+  console.log(`\nFetching: ${page.slug}`)
 
   try {
-    const rawVaults = await fetchAllPages('/v2/detailed-vaults', page.apiParams)
-    const vaults = rawVaults
+    const { items, hasMore } = await fetchPage(page.apiParams, 0)
+
+    // Fetch page 2 if available and we want more results
+    let allItems = [...items]
+    if (hasMore && allItems.length < 30) {
+      const p2 = await fetchPage(page.apiParams, 1)
+      allItems = [...allItems, ...p2.items]
+    }
+
+    const vaults = allItems
       .map(normalizeVault)
       .filter(v => v.apy7d > 0)
       .sort((a, b) => b.apy7d - a.apy7d)
@@ -153,28 +170,18 @@ for (const page of pages) {
 
     const benchmarkRate = page.benchmarkAsset === 'eth' ? benchmark.eth : benchmark.usd
 
-    const output = {
-      config: page,
-      vaults,
-      benchmarkRate,
-      fetchedAt,
-    }
-
-    const outPath = join(DATA_DIR, `${page.slug}.json`)
-    writeFileSync(outPath, JSON.stringify(output, null, 2))
-    console.log(`  ✓ ${vaults.length} vaults → ${outPath}`)
+    writeFileSync(
+      join(DATA_DIR, `${page.slug}.json`),
+      JSON.stringify({ config: page, vaults, benchmarkRate, fetchedAt }, null, 2)
+    )
+    console.log(`  ✓ saved ${vaults.length} vaults`)
   } catch (err) {
-    console.error(`  ✗ Error fetching ${page.slug}: ${err.message}`)
-    // Write empty fallback so the build doesn't fail
-    const outPath = join(DATA_DIR, `${page.slug}.json`)
-    writeFileSync(outPath, JSON.stringify({
-      config: page,
-      vaults: [],
-      benchmarkRate: null,
-      fetchedAt,
-      error: err.message,
-    }, null, 2))
+    console.error(`  ✗ ${err.message}`)
+    writeFileSync(
+      join(DATA_DIR, `${page.slug}.json`),
+      JSON.stringify({ config: page, vaults: [], benchmarkRate: null, fetchedAt, error: err.message }, null, 2)
+    )
   }
 }
 
-console.log('Done.')
+console.log('\nDone.')

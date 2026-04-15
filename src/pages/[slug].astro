@@ -298,7 +298,7 @@ const breadcrumbSchema = {
 
   <!-- Breadcrumb -->
   <nav class="breadcrumb" aria-label="Breadcrumb">
-    <a href="/">Research</a> / {config.title}
+    <a href={import.meta.env.BASE_URL}>Research</a> / {config.title}
   </nav>
 
   <!-- Hero -->
@@ -402,7 +402,7 @@ const breadcrumbSchema = {
       <h2>Related Research</h2>
       <div class="related-grid">
         {config.related.map(({ slug, label }) => (
-          <a class="related-link" href={`/${slug}`}>{label}</a>
+          <a class="related-link" href={`${import.meta.env.BASE_URL}${slug}`}>{label}</a>
         ))}
       </div>
     </section>
