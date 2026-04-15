@@ -313,7 +313,7 @@ const breadcrumbSchema = {
     <div class="hero-stat">
       <span class="hero-apy">{topApy}</span>
       <span class="hero-label">
-        Best 7-day APY — {topVault.protocol} ({fmtNetwork(topVault.network)})
+        Best 7-day APY — {topVault.name} by {topVault.protocol} ({fmtNetwork(topVault.network)})
       </span>
     </div>
   )}
@@ -344,13 +344,17 @@ const breadcrumbSchema = {
               const { label, cls } = riskLabel(v.reputationScore)
               return (
                 <tr>
-                  <td class="vault-name">{v.name}</td>
+                  <td class="vault-name">
+                    {v.lendUrl
+                      ? <a href={v.lendUrl} target="_blank" rel="noopener">{v.name}</a>
+                      : v.name}
+                  </td>
                   <td>{v.protocol}</td>
                   <td><span class="network-badge">{fmtNetwork(v.network)}</span></td>
                   <td>
                     <span class="apy-val">{fmtApy(v.apy7d)}</span>
                     {v.apy7dReward > 0 && (
-                      <div class="apy-reward">+{fmtApy(v.apy7dReward)} rewards</div>
+                      <div class="apy-reward">incl. {fmtApy(v.apy7dReward)} rewards</div>
                     )}
                   </td>
                   <td class="tvl-val">{fmtTvl(v.tvl)}</td>

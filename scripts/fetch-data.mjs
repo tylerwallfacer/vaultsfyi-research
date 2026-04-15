@@ -80,39 +80,33 @@ async function fetchPage(apiParams, page = 0) {
 }
 
 /** Normalize a vault from the API response into a consistent shape. */
-function normalizeVault(v, debug = false) {
-  if (debug) console.log('  raw vault keys:', Object.keys(v).join(', '))
+function normalizeVault(v) {
+  const apy7d       = v.apy?.['7day']?.total ?? 0
+  const apy7dBase   = v.apy?.['7day']?.base  ?? apy7d
+  const apy7dReward = v.apy?.['7day']?.reward ?? 0
 
-  const apy7d =
-    v.apy?.['7day']?.total ??
-    v.apy?.['7day'] ??
-    v.apy7d ??
-    v.apy?.total ??
-    0
+  // tvl may be a number or { total: number }
+  const tvlRaw = v.tvl
+  const tvl    = typeof tvlRaw === 'object' ? (tvlRaw?.total ?? 0) : (tvlRaw ?? 0)
 
-  const apy7dBase   = v.apy?.['7day']?.base   ?? apy7d
-  const apy7dReward = v.apy?.['7day']?.reward  ?? 0
+  // score is the reputation/risk field (not reputationScore)
+  const scoreRaw       = v.score
+  const reputationScore = typeof scoreRaw === 'object'
+    ? (scoreRaw?.total ?? scoreRaw?.overall ?? null)
+    : (scoreRaw ?? null)
 
-  const tvlRaw = v.tvlUsd ?? v.tvl?.total ?? v.tvl ?? v.totalValueLockedUsd ?? 0
-  const tvl    = typeof tvlRaw === 'object' ? (tvlRaw?.total ?? 0) : tvlRaw
-
-  const protocol = v.protocol?.name ?? v.protocolName ?? String(v.protocol ?? 'Unknown')
-  const network  = v.network?.name ?? v.network?.slug ?? String(v.network ?? 'unknown')
-  const name     = v.name ?? v.vaultName ?? 'Unnamed Vault'
-  const asset    = v.asset?.symbol ?? v.assetSymbol ?? String(v.asset ?? '')
-  const reputationScore =
-    v.reputationScore?.total ??
-    v.reputationScore ??
-    v.reputation?.total ??
-    v.reputation ??
-    null
+  const protocol = v.protocol?.name ?? String(v.protocol ?? 'Unknown')
+  const network  = v.network?.name  ?? v.network?.slug ?? String(v.network ?? 'unknown')
+  const name     = v.name ?? 'Unnamed Vault'
+  const asset    = v.asset?.symbol  ?? String(v.asset ?? '')
 
   return {
     name,
     protocol,
     network,
     asset,
-    address: v.address ?? v.vaultAddress ?? '',
+    address:      v.address ?? '',
+    lendUrl:      v.lendUrl ?? null,
     apy7d:        parseFloat(apy7d)        || 0,
     apy7dBase:    parseFloat(apy7dBase)    || 0,
     apy7dReward:  parseFloat(apy7dReward)  || 0,
@@ -122,28 +116,25 @@ function normalizeVault(v, debug = false) {
   }
 }
 
-/** Fetch benchmark APY for a given network. */
-async function fetchBenchmark(network = 'ethereum') {
+/** Fetch a single benchmark rate by code ('usd' or 'eth'). */
+async function fetchSingleBenchmark(code) {
+  const data = await apiFetch('/v2/benchmarks/mainnet', { code })
+  // Response may be { data: [...] } or a single object
+  const item = Array.isArray(data.data) ? data.data[0] : data
+  const apy  = item?.apy
+  if (typeof apy === 'number') return apy
+  return apy?.['7day']?.total ?? apy?.total ?? null
+}
+
+/** Fetch USD and ETH benchmark rates. */
+async function fetchBenchmarks() {
   try {
-    const data = await apiFetch(`/v2/benchmarks/${network}`)
-    const benchmarks = data.data ?? data.benchmarks ?? []
-    console.log(`  Benchmark keys: ${benchmarks.map(b => b.benchmarkCode ?? b.name).join(', ')}`)
-
-    const usdBench = benchmarks.find(b =>
-      (b.benchmarkCode ?? b.name ?? '').toLowerCase().includes('usd')
-    )
-    const ethBench = benchmarks.find(b =>
-      (b.benchmarkCode ?? b.name ?? '').toLowerCase().includes('eth')
-    )
-
-    const extractRate = (b) => {
-      if (!b) return null
-      const apy = b.apy
-      if (typeof apy === 'number') return apy
-      return apy?.['7day']?.total ?? apy?.total ?? null
-    }
-
-    return { usd: extractRate(usdBench), eth: extractRate(ethBench) }
+    const [usd, eth] = await Promise.all([
+      fetchSingleBenchmark('usd'),
+      fetchSingleBenchmark('eth'),
+    ])
+    console.log(`  Benchmarks — USD: ${usd != null ? (usd * 100).toFixed(2) + '%' : 'n/a'}, ETH: ${eth != null ? (eth * 100).toFixed(2) + '%' : 'n/a'}`)
+    return { usd, eth }
   } catch (err) {
     console.warn(`  Warning: benchmark fetch failed: ${err.message}`)
     return { usd: null, eth: null }
@@ -157,8 +148,7 @@ mkdirSync(DATA_DIR, { recursive: true })
 const fetchedAt = new Date().toISOString()
 
 console.log('Fetching benchmarks...')
-const benchmark = await fetchBenchmark('mainnet')
-console.log(`Benchmark — USD: ${benchmark.usd != null ? (benchmark.usd * 100).toFixed(2) + '%' : 'n/a'}, ETH: ${benchmark.eth != null ? (benchmark.eth * 100).toFixed(2) + '%' : 'n/a'}`)
+const benchmark = await fetchBenchmarks()
 
 for (const page of pages) {
   console.log(`\nFetching: ${page.slug}`)
@@ -174,7 +164,7 @@ for (const page of pages) {
     }
 
     const vaults = allItems
-      .map((v, i) => normalizeVault(v, i === 0))
+      .map(normalizeVault)
       .filter(v => v.apy7d > 0)
       .sort((a, b) => b.apy7d - a.apy7d)
       .slice(0, 15)
