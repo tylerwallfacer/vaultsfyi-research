@@ -53,7 +53,9 @@ const NETWORK_NAMES = {
 }
 
 function fmtNetwork(n) {
-  return NETWORK_NAMES[n?.toLowerCase()] ?? n ?? '—'
+  if (!n) return '—'
+  const key = String(n).toLowerCase()
+  return NETWORK_NAMES[key] ?? String(n)
 }
 
 // ── Dates ─────────────────────────────────────────────────────────────────────

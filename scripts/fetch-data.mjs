@@ -91,7 +91,7 @@ function normalizeVault(v) {
 
   const tvl   = v.tvlUsd ?? v.tvl ?? 0
   const protocol = v.protocol?.name ?? v.protocolName ?? String(v.protocol ?? 'Unknown')
-  const network  = v.network ?? 'unknown'
+  const network  = v.network?.name ?? v.network?.slug ?? String(v.network ?? 'unknown')
   const name     = v.name ?? v.vaultName ?? 'Unnamed Vault'
   const asset    = v.asset?.symbol ?? v.assetSymbol ?? String(v.asset ?? '')
   const reputationScore = v.reputationScore ?? v.reputation ?? null
